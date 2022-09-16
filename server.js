@@ -24,7 +24,6 @@ app.get("/songlist", (req, res) => {
 app.post("/query", async (req, res) => {
     try{
         let body = req.body
-        console.log(body.title)
         let title = body.title
 
         const results = []
@@ -45,7 +44,6 @@ app.post("/query", async (req, res) => {
             })
             
         })
-        console.log(results)
         res.json(results)
         // res.json(results)
     }catch(err){
@@ -53,19 +51,43 @@ app.post("/query", async (req, res) => {
 }
 })
 
+/** @returns {string} */
+function createContentRange(/** @type {number} */ start, /** @type {number} */ end) {
+    return "bytes " + (start || 0) + "-" + (isNaN(end) ? "*" : end) + "/*"
+}
+
 app.get("/audio", (req, res) => {
     const url = req.query.url
 
     console.log("URL: " + url)
     if(!url)return
-      
-        const stream = ytdl(url, {
-            filter: "audioonly",
-        })
-  
-        res.set("content-type", "audio/mp3");
-        res.set("accept-ranges", "bytes");
-  
+    res.set("Accept-Ranges","bytes")
+    res.set("Content-Type", "audio/mp3")
+
+    // const [start, end] = req.headers.range?.substring(6)?.split("-")?.map(it => parseInt(it))
+
+    // const contRange = createContentRange(start, end);
+    // console.log(contRange);
+
+    // res.writeHead(206, {
+    //     "Accept-Ranges": "bytes",
+    //     "Content-Type": "audio/mp3",
+    //     "Content-Range": contRange,
+    //     // "Content-Length": "8828094", // haben wir ja nicht
+    //     "Transfer-Encoding": "chunked"
+    // })
+
+    // bytes=2293760-
+    // console.log("start end", start, end)
+
+    const stream = ytdl(url, {
+        filter: "audioonly",
+        quality: "highestaudio",
+        // range: {
+        //     start,
+        //     end,
+        // }
+    })
 
     stream.pipe(res);
 
@@ -80,6 +102,59 @@ app.get("/audio", (req, res) => {
       
   });
 
+  app.get("/video", (req, res) => {
+    const url = req.query.url
+
+    console.log("URL Video: " + url)
+    if(!url)return
+    res.set("Accept-Ranges","bytes")
+    res.set("Content-Type", "video/mp4")
+    const stream = ytdl(url, {
+        quality: "highest"
+    })
+
+    stream.pipe(res);
+
+  });
+
+  app.post("/rpc", (req, res) => {
+    const body = req.body
+
+    console.log(body)
+    // const rpc = require("discord-rpc")
+
+    // const client = new rpc.Client({ transport: "ipc" })
+    // client.request("SET_ACTIVITY", {
+    //     pid: process.pid,
+    //     activity: {
+    //         details: body.title,
+    //         state: "Listening to music",
+    //         startTimestamp: new Date(),
+    //         endTimestamp: new Date(Date.now() + body.duration * 1000),
+    //     }
+    // }).catch(err => console.log(err))
+
+    // client.login({clientId: "703733668006461521"}).catch(err => console.log(err))
+
+
+    res.sendStatus(200)
+  })
+
+app.get("/download", (req, res) => {
+    const url = req.query.url
+    if(!url)return
+    res.set("Accept-Ranges","bytes")
+    res.set("Content-Type", "audio/mp3")
+
+    const stream = ytdl(url, {
+        filter: "audioonly",
+        quality: "highestaudio"
+    })
+
+    stream.on("end", () => {
+        
+    })
+})
 
 app.listen(3000, () => {
     console.log("Server started on port 3000");

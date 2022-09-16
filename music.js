@@ -54,6 +54,7 @@ async function searchquery(){
   
   let input = query.value
   if(input == "")return
+  console.log(input)
    
   ytResult = await fetch("/query",  {
       method: "POST",
@@ -63,7 +64,6 @@ async function searchquery(){
       }
     })
     .then(async (res) => {
-      console.log(res)
       if(!res.ok) throw new Error("Error fetching query")
       return res.json()
     })
@@ -77,14 +77,25 @@ searchquery()
 // Keep track of song
 let songIndex = 0;
 let song = songs[songIndex]
+let currenttrackduration = 0
 // Initially load song details into DOM
 loadSong(songs[songIndex]);
+
 
 // Update song details
 async function loadSong(song) {
   title.innerText = song
   audio.src = `music/${song}.mp3`;
   cover.src = `images/mimi.jpg`;
+  let duration = currenttrackduration
+  duration = await converttime(duration)
+  await fetch("/rpc", {
+    method: "POST",
+    body: JSON.stringify({ url: "local file", title: song, duration: duration || "No time", thumbnail: "https://i.imgur.com/8QZ1Z7A.jpg" }),
+    headers: {
+      "Content-Type": "application/json"
+    }
+  })
 }
 volu.addEventListener("input", vol)
 
@@ -169,14 +180,19 @@ function prevSong() {
 let on_off = 1
 function loop(){
     if(on_off == 2){
-        songIndex--
-        return;
+        audio.currentTime = 0;
+        audio.play()
+        return true
+    }
+    else{
+      return false
     }
 }
 
 // Next song
 function nextSong() {
-    loop();
+  let isloop = loop();
+  if(!isloop){
   songIndex++;
 
   if (songIndex > songs.length - 1) {
@@ -188,6 +204,7 @@ function nextSong() {
   loadnames()
 
   playSong();
+}
 }
 //skip
 function skip() {
@@ -217,33 +234,137 @@ function setProgress(e) {
   const duration = audio.duration;
 
   audio.currentTime = (clickX / width) * duration;
+  console.log(((clickX / width) * duration))
 }
 
 /** @returns {HTMLDivElement} */
 function createPreviewElement(/** @type {{ url: string, thumbnail: { url: string, width: number, height: number }, views: number, title: string, duration: string }} */ data) {
+
+  const btn = document.createElement("button")
   const img = document.createElement("img")
   img.src = data.thumbnail.url
   img.width = data.thumbnail.width
   img.height = data.thumbnail.height
 
+
+  img.addEventListener("click", async () => {
+    title.innerText = data.title
+    title.addEventListener("click", () => {
+      if(!data.url) navigator.clipboard.writeText(data.title)
+      else{
+        navigator.clipboard.writeText(data.url)
+      }
+    })
+
+    title.addEventListener("mouseover", () => {
+      title.style.cursor = "pointer"
+    })
+    audio.src = "/audio?url=" + encodeURIComponent(data.url)
+    playSong()
+    cover.src = data.thumbnail.url
+    let video = "/video?url=" + encodeURIComponent(data.url)
+    fetch("/rpc", {
+      method: "POST",
+      body: JSON.stringify({ url: data.url, title: data.title, duration: data.duration, thumbnail: data.thumbnail.url }),
+      headers: {
+        "Content-Type": "application/json"
+      }
+    })
+  })
+
+ 
+
+  const buttons = ["movie", "content_copy", "download", "play_circle_outline"].map(c => {
+    const btn = document.createElement("button")
+    const span = document.createElement("span")
+    span.className = "material-icons"
+    span.innerText = c
+    btn.addEventListener("click", () => {
+      if(c == "content_copy"){
+        navigator.clipboard.writeText(data.url)
+      }
+      else if(c == "download"){
+        console.log("/music?url=" + encodeURIComponent(data.url))
+        download("/music?url=" + encodeURIComponent(data.url), data.title, "mp3")
+      }
+      else if(c == "play_circle_outline"){
+        window.open("/video?url=" + encodeURIComponent(data.url))
+      }
+      else if(c == "movie"){
+        window.open(data.url)
+      }
+    })
+    btn.append(span)
+    return btn
+  })
+  const buttonContainer = document.createElement("div")
+  buttonContainer.className = "Preview__Buttons"
+  buttonContainer.append(...buttons)
+
+
   const h3 = document.createElement("h3")
   h3.textContent = data.title;
+
+  
 
   const time = document.createElement("p")
   time.textContent = data.duration
 
-  img.addEventListener("click", async () => {
-    title.innerText = data.title
-    audio.src = "/audio?url=" + encodeURIComponent(data.url)
-    playSong()
-    cover.src = data.thumbnail.url
+
+  btn.addEventListener("click", () => {
+    navigator.clipboard.writeText(data.url)
   })
 
+
   const container = document.createElement("div")
-  container.append(h3, time, img)
+  container.classList = "Preview"
+  container.append(h3, time, img, buttonContainer)
 
   return container
 }
+
+/**
+ * @param {string} url URL to fetch
+ * @param {string} filename Filename to save as
+ * @param {string} type File type
+ */
+function download(url, filename, type) {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename + "." + type
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+
+
+async function converttime(t){
+  let hours = Math.floor(t / 3600);
+  let min = Math.floor((t - (hours * 3600)) / 60);
+  let sec = Math.floor(t - (hours * 3600) - (min * 60));
+  if(sec < 10){
+    sec = "0" + sec
+  }
+  if(min < 10){
+    min = "0" + min
+  }
+  if(hours < 10){
+    hours = "0" + hours
+  }
+  let string = hours + ":" + min + ":" + sec
+  if(hours == "00"){
+    string = min + ":" + sec
+  }
+    return {
+    ms : Math.floor(t * 1000),
+    sec : Math.floor(t),
+    string
+  }
+ 
+}
+
+
 
 function updateVideos() {
   console.log(ytResult)
@@ -286,9 +407,14 @@ function updateVideos() {
 
 //get duration & currentTime for Time of song
 function DurTime (e) {
-	const {duration,currentTime} = e.srcElement;
+  let duration
+  let currentTime
+    duration = e.srcElement.duration
+    currentTime = e.srcElement.currentTime
 	var sec;
 	var sec_d;
+
+  currenttrackduration = duration
 
 	// define minutes currentTime
 	let min = (currentTime==null)? 0:
@@ -386,6 +512,7 @@ audio.addEventListener('ended', nextSong);
 
 // Time of song
 audio.addEventListener('timeupdate',DurTime);
+
 
 
 
