@@ -3,6 +3,10 @@ const fs = require("fs");
 const ytdl = require("ytdl-core");
 const ytsr = require("ytsr")
 const bodyparser = require("body-parser");
+const ffmpegPath = require("ffmpeg-static");
+const cp = require("child_process");
+const stream = require("stream");
+const { Stream } = require("stream");
 
 const app = express();
 
@@ -102,7 +106,7 @@ app.get("/audio", (req, res) => {
       
   });
 
-  app.get("/video", (req, res) => {
+  app.get("/video",async (req, res) => {
     const url = req.query.url
 
     console.log("URL Video: " + url)
@@ -110,10 +114,58 @@ app.get("/audio", (req, res) => {
     res.set("Accept-Ranges","bytes")
     res.set("Content-Type", "video/mp4")
     const stream = ytdl(url, {
-        quality: "highest"
+        quality: "highestaudio"
     })
 
-    stream.pipe(res);
+    const stream2 = ytdl(url, {
+        quality: "136"
+    })
+
+
+
+
+
+const ytmixer = (link, options = {}) => {
+const result = new Stream.PassThrough();
+ytdl.getInfo(link, options).then(info => {
+    let audioStream = ytdl.downloadFromInfo(info, { ...options, quality: 
+'highestaudio' });
+    let videoStream = ytdl.downloadFromInfo(info, { ...options, quality: 
+'137' });
+    // create the ffmpeg process for muxing
+    let ffmpegProcess = cp.spawn(ffmpegPath, [
+        // supress non-crucial messages
+        '-loglevel', '8', '-hide_banner',
+        // input audio and video by pipe
+        '-i', 'pipe:3', '-i', 'pipe:4',
+        // map audio and video correspondingly
+        '-map', '0:a', '-map', '1:v',
+        // no need to change the codec
+        '-c', 'copy',
+        // output mp4 and pipe
+        '-f', 'matroska', 'pipe:5'
+    ], {
+        // no popup window for Windows users
+        windowsHide: true,
+        stdio: [
+            // silence stdin/out, forward stderr,
+            'inherit', 'inherit', 'inherit',
+            // and pipe audio, video, output
+            'pipe', 'pipe', 'pipe'
+        ]
+    });
+    audioStream.pipe(ffmpegProcess.stdio[3]);
+    videoStream.pipe(ffmpegProcess.stdio[4]);
+    ffmpegProcess.stdio[5].pipe(result);
+});
+return result;
+};
+
+let result = ytmixer(url)
+
+result.pipe(res)
+
+
 
   });
 

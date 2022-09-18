@@ -85,6 +85,9 @@ loadSong(songs[songIndex]);
 // Update song details
 async function loadSong(song) {
   title.innerText = song
+  if(song && song.length > 50){
+    title.innerText = song.substring(0, 50) + "..."
+  }
   audio.src = `music/${song}.mp3`;
   cover.src = `images/mimi.jpg`;
   let duration = currenttrackduration
