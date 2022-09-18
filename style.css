@@ -354,7 +354,7 @@ div:focus > .Preview__Buttons {
   z-index: 0;
 }
 
-.music-container.play .music-info {
+.music-container .music-info {
   opacity: 1;
   transform: translateY(-100%);
 }

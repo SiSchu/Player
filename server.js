@@ -145,7 +145,6 @@ ytdl.getInfo(link, options).then(info => {
         // output mp4 and pipe
         '-f', 'matroska', 'pipe:5'
     ], {
-        // no popup window for Windows users
         windowsHide: true,
         stdio: [
             // silence stdin/out, forward stderr,
@@ -163,7 +162,11 @@ return result;
 
 let result = ytmixer(url)
 
-result.pipe(res)
+    result.pipe(res).on("error", (err) => {
+        console.log(err)
+    })
+
+
 
 
 
