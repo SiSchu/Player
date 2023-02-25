@@ -34,9 +34,10 @@ let filenames = []
 async function loadnames() {
   const songlist = await fetch("/songlist")
     .then(res => {
-      if (!res.ok) throw new Error("Error fetching songlist")
+      if (!res.ok) return console.log("Error fetching songlist")
       return res.json()
     });
+    if(!songlist) return
   songs = songlist.map(n => n.replace(/\.mp3/, ""));
   return songs
 }
@@ -92,6 +93,7 @@ async function loadSong(song) {
   cover.src = `images/mimi.jpg`;
   let duration = currenttrackduration
   duration = await converttime(duration)
+  if(song == undefined)return
   await fetch("/rpc", {
     method: "POST",
     body: JSON.stringify({ url: "local file", title: song, duration: duration || "No time", thumbnail: "https://i.imgur.com/8QZ1Z7A.jpg" }),
@@ -185,6 +187,14 @@ function loop(){
     if(on_off == 2){
         audio.currentTime = 0;
         audio.play()
+        let currenttime = audio.currentTime
+        fetch("/updaterpctime", {
+          method: "POST",
+          body: JSON.stringify({ currenttime: currenttime }),
+          headers: {
+            "Content-Type": "application/json"
+          }
+        })
         return true
     }
     else{
@@ -235,9 +245,17 @@ function setProgress(e) {
   const width = this.clientWidth;
   const clickX = e.offsetX;
   const duration = audio.duration;
+  let currenttime = (clickX / width) * duration
+  console.log(currenttime)
 
-  audio.currentTime = (clickX / width) * duration;
-  console.log(((clickX / width) * duration))
+  audio.currentTime = currenttime;
+  fetch("/updaterpctime", {
+    method: "POST",
+    body: JSON.stringify({ currenttime: currenttime }),
+    headers: {
+      "Content-Type": "application/json"
+    }
+  })
 }
 
 /** @returns {HTMLDivElement} */
@@ -266,6 +284,11 @@ function createPreviewElement(/** @type {{ url: string, thumbnail: { url: string
     playSong()
     cover.src = data.thumbnail.url
     let video = "/video?url=" + encodeURIComponent(data.url)
+
+    let song = data.title
+    let duration = data.duration
+
+
     fetch("/rpc", {
       method: "POST",
       body: JSON.stringify({ url: data.url, title: data.title, duration: data.duration, thumbnail: data.thumbnail.url }),
@@ -287,8 +310,7 @@ function createPreviewElement(/** @type {{ url: string, thumbnail: { url: string
         navigator.clipboard.writeText(data.url)
       }
       else if(c == "download"){
-        console.log("/music?url=" + encodeURIComponent(data.url))
-        download("/music?url=" + encodeURIComponent(data.url), data.title, "mp3")
+        window.open("/download?url=" + encodeURIComponent(data.url))
       }
       else if(c == "play_circle_outline"){
         window.open("/video?url=" + encodeURIComponent(data.url))
